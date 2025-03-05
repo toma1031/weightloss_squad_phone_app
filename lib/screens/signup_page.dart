@@ -34,12 +34,12 @@ class _SignupPageState extends State<SignupPage> {
 
       if (response.user != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('サインアップ成功！メールを確認してください')),
+          const SnackBar(content: Text('Sign up successful! Please check your email')),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('エラー: $e')),
+        SnackBar(content: Text('error: $e')),
       );
     } finally {
       setState(() {
@@ -59,7 +59,7 @@ class _SignupPageState extends State<SignupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('サインアップ')),
+      appBar: AppBar(title: const Text('Sign up')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -69,11 +69,11 @@ class _SignupPageState extends State<SignupPage> {
             children: [
               TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(labelText: 'メールアドレス'),
+                decoration: const InputDecoration(labelText: 'Email Address'),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'メールアドレスを入力してください';
+                    return 'Enter your Email Address';
                   }
                   return null;
                 },
@@ -81,14 +81,14 @@ class _SignupPageState extends State<SignupPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _passwordController,
-                decoration: const InputDecoration(labelText: 'パスワード'),
+                decoration: const InputDecoration(labelText: 'Password'),
                 obscureText: true,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'パスワードを入力してください';
+                    return 'Enter your password';
                   }
                   if (value.length < 6) {
-                    return 'パスワードは6文字以上必要です';
+                    return 'Password must be at least 6 characters';
                   }
                   return null;
                 },
@@ -96,14 +96,14 @@ class _SignupPageState extends State<SignupPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _confirmPasswordController,
-                decoration: const InputDecoration(labelText: 'パスワード（確認用）'),
+                decoration: const InputDecoration(labelText: 'Password (confirm)'),
                 obscureText: true,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return '確認用パスワードを入力してください';
+                    return 'Please enter your confirmation password';
                   }
                   if (value != _passwordController.text) {
-                    return 'パスワードが一致しません';
+                    return 'Passwords do not match';
                   }
                   return null;
                 },
@@ -113,7 +113,7 @@ class _SignupPageState extends State<SignupPage> {
                   ? const CircularProgressIndicator()
                   : ElevatedButton(
                       onPressed: _signUp,
-                      child: const Text('サインアップ'),
+                      child: const Text('Sign up'),
                     ),
             ],
           ),
