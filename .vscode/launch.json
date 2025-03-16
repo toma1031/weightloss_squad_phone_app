@@ -4,12 +4,20 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
+    // {
+    //   "name": "Flutter: Run on Emulator-5556",
+    //   "request": "launch",
+    //   "type": "dart",
+    //   "program": "lib/main.dart",
+    //   "args": ["-d", "emulator-5556"],
+    //   "flutterMode": "debug"
+    // },
     {
-      "name": "Flutter: Run on Emulator-5556",
+      "name": "Flutter: Run on iPhone 15 Pro Max",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
-      "args": ["-d", "emulator-5556"],
+      "args": ["-d", "4E40E120-EC7C-47C9-84F6-DA7A7AD2D2CE"],
       "flutterMode": "debug"
     },
     {
