@@ -48,27 +48,14 @@
 		<key>CFBundleURLTypes</key>
 		<array>
 			<dict>
-				<key>CFBundleURLName</key>
-				<string>com.example.app</string>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
 					<string>io.supabase.weightlosssquad</string>
 				</array>
 			</dict>
 		</array>
-
-		<key>LSApplicationQueriesSchemes</key>
-		<array>
-			<string>io.supabase.weightlosssquad</string>
-		</array>
-
-		<key>CFBundleDeepLinks</key>
-		<array>
-			<string>io.supabase.weightlosssquad://signup-complete</string>
-		</array>
-
-		<key>UIApplicationSupportsIndirectInputEvents</key>
-		<true />
 
 	</dict>
 </plist>

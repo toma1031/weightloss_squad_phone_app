@@ -34,7 +34,7 @@
                 <!-- Supabaseのディープリンク用のスキーム -->
                 <data
                     android:scheme="io.supabase.weightlosssquad"
-                    android:host="signup-complete" />
+                    android:host="login-callback" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

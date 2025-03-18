@@ -1,130 +1,43 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:app_links/app_links.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'screens/signup_page.dart';
-import 'screens/signup_complete_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import './screens/login_after_page.dart';
+import './screens/login_page.dart';
+import './screens/splash_page.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  await dotenv.load();
-  
-  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
-  
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
-  
+Future<void> main() async {
+  const environment = String.fromEnvironment('ENVIRONMENT');
+  await dotenv.load(
+    fileName: environment == 'development' ? '.env' : '.env.local',
+  );
+  // await dotenv.load();
+
+  final supabaseUrl = dotenv.get('SUPABASE_URL', fallback: '');
+  final anonKey = dotenv.get('SUPABASE_ANONKEY', fallback: '');
+  debugPrint('SUPABASE_URL: $supabaseUrl');
+  debugPrint('ANON_KEY: $anonKey');
+
+  await Supabase.initialize(url: supabaseUrl, anonKey: anonKey);
   runApp(const MyApp());
 }
 
-class MyApp extends StatefulWidget {
+final supabase = Supabase.instance.client;
+
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-  
-  @override
-  _MyAppState createState() => _MyAppState();
-}
 
-class _MyAppState extends State<MyApp> {
-  late AppLinks _appLinks;
-  StreamSubscription<Uri>? _linkSubscription;
-  Uri? _initialUri;
-  Uri? _latestUri;
-  bool _isLoading = true;
-  
+  // This widget is the root of your application.
   @override
-  void initState() {
-    super.initState();
-    _appLinks = AppLinks();
-    // 初期リンクの取得を非同期で開始
-    _initializeAppLinks();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Supabase Authentication Login Sample',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      initialRoute: '/',
+      routes: <String, WidgetBuilder>{
+        '/': (_) => const SplashPage(),
+        '/login': (_) => const LoginPage(),
+        '/login-after': (_) => const LoginAfterPage(),
+      },
+    );
   }
-  
-Future<void> _initializeAppLinks() async {
-  print('Initializing app links');
-  try {
-    final initialUri = await _appLinks.getInitialAppLink();
-    print('Initial URI: $initialUri');
-        // ここに追加（初期URI用）
-    print('=== Initial URI Debug Info ===');
-    print('Received URI: ${initialUri?.toString()}');
-    print('Scheme: ${initialUri?.scheme}');
-    print('Host: ${initialUri?.host}');
-    print('Path: ${initialUri?.path}');
-    print('Query Parameters: ${initialUri?.queryParameters}');
-    print('===========================');
-    if (initialUri != null) {
-      setState(() {
-        _initialUri = initialUri;
-        _latestUri = initialUri;
-      });
-      
-      // 初期URIがある場合は即座にナビゲーション
-      if (!mounted) return;
-      if (initialUri.host == 'signup-complete') {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          Navigator.of(context).pushNamed(
-            '/signup-complete',
-            arguments: initialUri.queryParameters['code'],
-          );
-        });
-      }
-    }
-  } catch (e) {
-    print('Error getting initial link: $e');
-  }
-  
-  // ストリームでのリンク受信を設定
-  _linkSubscription = _appLinks.uriLinkStream.listen(
-    (Uri? uri) {
-            // ここに追加（ストリームURI用）
-      print('=== Stream URI Debug Info ===');
-      print('Received URI: ${uri?.toString()}');
-      print('Scheme: ${uri?.scheme}');
-      print('Host: ${uri?.host}');
-      print('Path: ${uri?.path}');
-      print('Query Parameters: ${uri?.queryParameters}');
-      print('=========================');
-      print('Stream URI received: $uri');
-      if (uri != null && uri.host == 'signup-complete') {
-        if (!mounted) return;
-        Navigator.of(context).pushNamed(
-          '/signup-complete',
-          arguments: uri.queryParameters['code'],
-        );
-      }
-    },
-    onError: (err) {
-      print('Error in app_links: $err');
-    },
-  );
-  
-  setState(() {
-    _isLoading = false;
-  });
-}
-  
-  @override
-  void dispose() {
-    _linkSubscription?.cancel();
-    super.dispose();
-  }
-  
-@override
-Widget build(BuildContext context) {
-  return MaterialApp(
-    title: 'Weightloss Squad Phone App',
-    theme: ThemeData(primarySwatch: Colors.blue),
-    initialRoute: '/signup',
-    routes: {
-      '/signup': (context) => const SignupPage(),
-      '/signup-complete': (context) => SignupCompletePage(
-        code: ModalRoute.of(context)?.settings.arguments as String?,
-      ),
-      '/login': (context) => const Placeholder(),
-    },
-  );
-}
-
 }
