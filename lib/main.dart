@@ -6,11 +6,7 @@ import './screens/login_page.dart';
 import './screens/splash_page.dart';
 
 Future<void> main() async {
-  const environment = String.fromEnvironment('ENVIRONMENT');
-  await dotenv.load(
-    fileName: environment == 'development' ? '.env' : '.env.local',
-  );
-  // await dotenv.load();
+  await dotenv.load(); // This will load .env by default
 
   final supabaseUrl = dotenv.get('SUPABASE_URL', fallback: '');
   final anonKey = dotenv.get('SUPABASE_ANONKEY', fallback: '');
