@@ -1,21 +1,26 @@
 # Weightloss Squad Phone App
 
-## 概要
-このアプリは、FlutterとSupabaseを使って体重管理や健康をサポートするモバイルアプリです。ユーザーはメールとパスワードでサインアップできます。
+## Overview
+This app is a mobile application that supports weight management and health using Flutter and Supabase. Users can sign up using their email and password.
 
-## 機能
-- **サインアップ**: メールアドレスとパスワード（確認付き）でユーザー登録。
-- Supabaseを使った認証機能。
+## Features
+- **Sign Up**: User registration with email and password (with confirmation).
+- Authentication features using Supabase.
 
-## セットアップ
-1. Flutterをインストール: `flutter doctor`で環境を確認。
-2. Supabaseプロジェクトを作成し、`main.dart`にURLとAnon Keyを設定。
-3. 依存関係をインストール: `flutter pub get`
-4. アプリを実行: `flutter run`
+## Setup
+1. Create a `.env` file at the path `weightloss_squad_phone_app/.env` and include the following content:
 
-## 開発状況
-- サインアップ機能: 完了
-- 次に予定: ログイン機能の実装
+   ```
+   SUPABASE_URL=your_SUPABASE_URL
+   SUPABASE_ANONKEY=your_SUPABASE_ANONKEY
+   ```
 
-## ライセンス
-MITライセンス（仮）。
+2. Install Flutter: Check your environment with `flutter doctor`.
+3. Install dependencies: Run `flutter pub get`.
+4. Run the app: Execute `flutter run`.
+
+## Development Status
+- Email magic link for Sign-up and login feature: Completed
+
+## License
+Toma (provisional).
