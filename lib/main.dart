@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import './screens/login_after_page.dart';
 import './screens/login_page.dart';
 import './screens/splash_page.dart';
+import 'screens/meal_upload_page.dart';
 
 Future<void> main() async {
   await dotenv.load(); // This will load .env by default
@@ -32,6 +33,7 @@ class MyApp extends StatelessWidget {
       routes: <String, WidgetBuilder>{
         '/': (_) => const SplashPage(),
         '/login': (_) => const LoginPage(),
+        '/upload': (_) => const UploadPage(),
         '/login-after': (_) => const LoginAfterPage(),
       },
     );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';  // 追加
+import 'package:supabase_flutter/supabase_flutter.dart'; // 追加
 
 import '../main.dart';
 
@@ -54,10 +54,19 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
             ),
           const Gap(18),
           Text('Email: ${user.email}'), // 変更箇所
-          const Gap(18),
-          Text('user: $user'),
+          // const Gap(18),
+          // Text('user: $user'),
           const Gap(18),
           ElevatedButton(onPressed: _signOut, child: const Text('Sign out')),
+
+          // ここにアップロードページへ飛ぶボタンを追加
+          const Gap(18),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pushNamed('/upload'); // アップロードページへ遷移
+            },
+            child: const Text('食事写真をアップロード'),
+          ),
         ],
       ),
     );
@@ -92,7 +101,8 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
   Future<void> _updateUserName() async {
     try {
       await supabase.auth.updateUser(
-        UserAttributes(  // ここを修正
+        UserAttributes(
+          // ここを修正
           data: {'user_name': _userNameController.text},
         ),
       );

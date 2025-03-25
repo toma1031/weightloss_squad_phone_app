@@ -28,7 +28,7 @@ class _LoginPageState extends State<LoginPage> {
   // );
   // final _userNameController = TextEditingController(text: 'example taro');
   final _magicLinkEmailController = TextEditingController(
-    text: 'wizardeveryone@example.com',
+    text: '',
   );
 
   @override
@@ -126,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
                 TextFormField(
                   decoration: const InputDecoration(
                     label: Text('email for magic link'),
-                    hintText: 'foobar@example.com',
+                    hintText: 'Input your Email Address',
                   ),
                   controller: _magicLinkEmailController,
                 ),

@@ -1,0 +1,235 @@
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../main.dart';
+
+class UploadPage extends StatefulWidget {
+  const UploadPage({super.key});
+
+  @override
+  UploadPageState createState() => UploadPageState();
+}
+
+class UploadPageState extends State<UploadPage> {
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  XFile? _image;
+  bool _isUploading = false;
+
+  Future<void> _pickImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? pickedImage = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxHeight: 1000,
+        maxWidth: 1000,
+      );
+
+      if (pickedImage != null) {
+        setState(() {
+          _image = pickedImage;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('画像の選択に失敗しました: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    try {
+      await supabase.auth.signOut();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ログアウトしました')),
+      );
+      // ログイン画面にリダイレクト（実装はアプリの構造に依存）
+      Navigator.pushReplacementNamed(context, '/login');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('ログアウトに失敗しました: $e')),
+      );
+    }
+  }
+
+  Future<void> _uploadImage() async {
+    // 画像の選択チェック
+    if (_image == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('画像を選択してください')),
+      );
+      return;
+    }
+
+    // タイトルの入力チェック
+    if (_titleController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('タイトルを入力してください')),
+      );
+      return;
+    }
+
+    // ログイン状態のチェック
+    if (supabase.auth.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ログインしてください。ログアウト後、再度ログインしてください。')),
+      );
+      await _logout();
+      return;
+    }
+
+    // セッションをリフレッシュしてトークンを最新に
+    try {
+      await supabase.auth.refreshSession();
+      print('Refreshed user ID: ${supabase.auth.currentUser?.id}');
+    } catch (e) {
+      print('Session refresh error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('セッションの更新に失敗しました。再度ログインしてください。')),
+      );
+      await _logout();
+      return;
+    }
+
+    setState(() => _isUploading = true);
+
+    try {
+      // 画像をSupabase Storageにアップロード
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${_image!.name}';
+      final filePath = 'uploads/$fileName';
+
+      await supabase.storage
+          .from('meal-photos') // 実際のバケット名
+          .upload(filePath, File(_image!.path));
+
+      // 公開URLを取得
+      final imageUrl = supabase.storage
+          .from('meal-photos')
+          .getPublicUrl(filePath);
+
+      // データベースに保存
+      final data = {
+        'title': _titleController.text,
+        'description': _descriptionController.text,
+        'image_url': imageUrl,
+        'created_at': DateTime.now().toIso8601String(),
+        'user_id': supabase.auth.currentUser!.id, // ログイン済みなので ! を使用
+      };
+      print('Inserting data: $data'); // デバッグ用ログ
+      print('Current user ID: ${supabase.auth.currentUser!.id}'); // ユーザーID確認
+
+      await supabase.from('meals').insert(data);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('アップロードが完了しました')),
+        );
+        // フォームをリセット
+        _titleController.clear();
+        _descriptionController.clear();
+        setState(() => _image = null);
+      }
+    } on PostgrestException catch (e) {
+      if (mounted) {
+        // RLS ポリシー違反の場合、詳細なメッセージを表示
+        if (e.code == '42501') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('アクセス権限がありません。ログアウト後、再度ログインしてください。'),
+            ),
+          );
+          await _logout();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('アップロードに失敗しました: ${e.message}')),
+          );
+        }
+        print('PostgrestException: $e'); // デバッグ用ログ
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('アップロードに失敗しました: $e')),
+        );
+      }
+      print('Unexpected error: $e'); // デバッグ用ログ
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('食事写真のアップロード'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ElevatedButton(
+              onPressed: _isUploading ? null : _pickImage,
+              child: const Text('写真を選択'),
+            ),
+            if (_image != null) ...[
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  File(_image!.path),
+                  height: 200,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'タイトル',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: '説明',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _isUploading ? null : _uploadImage,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              child: _isUploading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(),
+                    )
+                  : const Text('アップロード'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
