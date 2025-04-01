@@ -27,22 +27,28 @@ class _LoginPageState extends State<LoginPage> {
   //   text: 'rBTWSCWtdgbdaEuhisNF',
   // );
   // final _userNameController = TextEditingController(text: 'example taro');
-  final _magicLinkEmailController = TextEditingController(
-    text: '',
-  );
+  final _magicLinkEmailController = TextEditingController(text: '');
 
   @override
   void initState() {
     super.initState();
 
-    _authStateSubscription = supabase.auth.onAuthStateChange.listen((event) {
+    _authStateSubscription = supabase.auth.onAuthStateChange.listen((
+      event,
+    ) async {
       debugPrint('event: ${event.event.toString()}');
+      debugPrint('Auth state changed: ${event.event.toString()}'); // ここ変更: ログを詳細に
       if (_redirecting) {
         return;
       }
       final session = event.session;
       if (session != null) {
         _redirecting = true;
+
+        // ここ変更: サインアップ/ログイン後に users レコードを作成
+        final userId = session.user.id;
+        await _createUserRecord(userId);
+
         Navigator.of(context).pushReplacementNamed('/login-after');
       }
     });
@@ -52,6 +58,44 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _authStateSubscription.cancel();
     super.dispose();
+  }
+
+
+// ここ変更: エラーハンドリングを強化
+  Future<void> _createUserRecord(String userId) async {
+    try {
+      debugPrint('Creating user record for userId: $userId'); // ログ追加
+      // すでにレコードが存在するか確認
+      final existingUser = await supabase
+          .from('users')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (existingUser == null) {
+        debugPrint('No existing user record found, inserting new record...');
+        await supabase.from('users').insert({
+          'id': userId,
+          'last_upload_date': null,
+          'ban_until': null,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+        debugPrint('User record created successfully');
+      } else {
+        debugPrint('User record already exists: $existingUser');
+      }
+    } catch (e) {
+      debugPrint('Failed to create user record: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create user record: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+      // エラーが発生してもログインは続行可能
+    }
   }
 
   @override
@@ -167,13 +211,12 @@ class _LoginPageState extends State<LoginPage> {
   //   });
   // }
 
-
   Future<void> _signInMagicLink() async {
     try {
       setState(() {
         _isLoading = true;
       });
-      
+
       await supabase.auth.signInWithOtp(
         email: _magicLinkEmailController.text,
         shouldCreateUser: true,
