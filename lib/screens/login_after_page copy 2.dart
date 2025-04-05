@@ -13,7 +13,6 @@ class LoginAfterPage extends StatefulWidget {
 
 class _LoginAfterPageState extends State<LoginAfterPage> {
   String? partnerId;
-  String? partnerUserName; // ペアのユーザー名を保持する状態変数を追加
   bool isLoading = true;
 
   @override
@@ -35,20 +34,18 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
       print('Current user ID: $userId');
 
       print('Fetching pair data...');
-      final pairData =
-          await supabase
-              .from('pairs')
-              .select('user1_id, user2_id')
-              .or('user1_id.eq.$userId,user2_id.eq.$userId')
-              .maybeSingle();
+      final pairData = await supabase
+          .from('pairs')
+          .select('user1_id, user2_id')
+          .or('user1_id.eq.$userId,user2_id.eq.$userId')
+          .maybeSingle();
       print('Pair data: $pairData');
 
       if (pairData == null) {
         print('Invoking random-match-user Edge Function...');
-        final pairResponse = await supabase.functions.invoke(
-          'random-match-user',
-          body: {'userId': userId},
-        );
+        final pairResponse = await supabase.functions.invoke('random-match-user', body: {
+          'userId': userId,
+        });
         print('Pair response: ${pairResponse.data}');
 
         if (pairResponse.status != 200) {
@@ -67,55 +64,28 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
           );
         } else if (message == 'Pair created') {
           final newPartnerId = responseData['partnerId'] as String;
-          // 新しくマッチした相手のユーザー名を取得
-          final partnerData =
-              await supabase
-                  .from('users')
-                  .select('user_name')
-                  .eq('id', newPartnerId)
-                  .maybeSingle();
-
-          final newPartnerUserName =
-              partnerData?['user_name'] as String? ?? 'Unknown';
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('誰かとマッチしました！パートナー: $newPartnerUserName'),
+              content: Text('誰かとマッチしました！パートナー: $newPartnerId'),
               backgroundColor: Colors.green,
             ),
           );
           setState(() {
             partnerId = newPartnerId;
-            partnerUserName = newPartnerUserName; // 状態変数に保存
           });
         }
       } else {
-        final existingPartnerId =
-            pairData['user1_id'] == userId
-                ? pairData['user2_id']
-                : pairData['user1_id'];
-
-        // 相手のユーザー情報を取得
-        final partnerData =
-            await supabase
-                .from('users')
-                .select('user_name')
-                .eq('id', existingPartnerId)
-                .maybeSingle();
-
-        final partnerUserNameLocal =
-            partnerData?['user_name'] as String? ?? 'Unknown';
-
+        final existingPartnerId = pairData['user1_id'] == userId
+            ? pairData['user2_id']
+            : pairData['user1_id'];
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('既に誰かとマッチ済みです。パートナー: $partnerUserNameLocal'),
+            content: Text('既に誰かとマッチ済みです。パートナー: $existingPartnerId'),
             backgroundColor: Colors.blue,
           ),
         );
-
         setState(() {
           partnerId = existingPartnerId;
-          partnerUserName = partnerUserNameLocal; // 状態変数に保存
         });
       }
     } catch (e) {
@@ -135,7 +105,9 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
   Widget build(BuildContext context) {
     final user = supabase.auth.currentSession?.user;
     if (user == null) {
-      return const Scaffold(body: Center(child: Text('ユーザーが認証されていません')));
+      return const Scaffold(
+        body: Center(child: Text('ユーザーが認証されていません')),
+      );
     }
     final userMetadata = user.userMetadata;
     final avatarUrl = userMetadata?['avatar_url'] as String?;
@@ -166,23 +138,16 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
                       ? Image.network(avatarUrl)
                       : const Icon(Icons.no_photography),
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('user.name: $userName'),
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: _showUpdateUserNameDialog,
-                    ),
-                  ],
-                ),
+                Text('user.name: $userName'),
+                if (userName == 'unknown name')
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    onPressed: _showUpdateUserNameDialog,
+                  ),
                 const Gap(18),
-                Text('Email: ${user.email}', textAlign: TextAlign.center),
+                Text('Email: ${user.email}'),
                 const Gap(18),
-                ElevatedButton(
-                  onPressed: _signOut,
-                  child: const Text('Sign out'),
-                ),
+                ElevatedButton(onPressed: _signOut, child: const Text('Sign out')),
                 const Gap(18),
                 ElevatedButton(
                   onPressed: () {
@@ -194,8 +159,7 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
                 Text(
                   partnerId == null
                       ? 'ペア待機中…'
-                      // : '現在のペア: $partnerUserName (ID: $partnerId)',
-                      : '現在のペア: $partnerUserName',
+                      : '現在のペア: $partnerId',
                   style: const TextStyle(fontSize: 18),
                   textAlign: TextAlign.center,
                 ),
@@ -224,32 +188,11 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
 
   Future<void> _updateUserName() async {
     try {
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        throw Exception('User is not authenticated');
-      }
-      final userId = user.id;
-
-      // 1. auth.users の user_name を更新
       await supabase.auth.updateUser(
         UserAttributes(
           data: {'user_name': _userNameController.text},
         ),
       );
-
-      // 2. public.users を更新（Edge Function を使用）
-      final response = await supabase.functions.invoke('update-public-user-name', body: {
-        'userId': userId,
-        'userName': _userNameController.text,
-      });
-
-      if (response.status != 200) {
-        throw Exception('Failed to update public user name: ${response.data}');
-      }
-
-      // セッションをリフレッシュして最新の userMetadata を取得
-      await supabase.auth.refreshSession();
-
       if (mounted) {
         setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(

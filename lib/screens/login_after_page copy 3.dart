@@ -13,7 +13,6 @@ class LoginAfterPage extends StatefulWidget {
 
 class _LoginAfterPageState extends State<LoginAfterPage> {
   String? partnerId;
-  String? partnerUserName; // ペアのユーザー名を保持する状態変数を追加
   bool isLoading = true;
 
   @override
@@ -67,26 +66,14 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
           );
         } else if (message == 'Pair created') {
           final newPartnerId = responseData['partnerId'] as String;
-          // 新しくマッチした相手のユーザー名を取得
-          final partnerData =
-              await supabase
-                  .from('users')
-                  .select('user_name')
-                  .eq('id', newPartnerId)
-                  .maybeSingle();
-
-          final newPartnerUserName =
-              partnerData?['user_name'] as String? ?? 'Unknown';
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('誰かとマッチしました！パートナー: $newPartnerUserName'),
+              content: Text('誰かとマッチしました！パートナー: $newPartnerId'),
               backgroundColor: Colors.green,
             ),
           );
           setState(() {
             partnerId = newPartnerId;
-            partnerUserName = newPartnerUserName; // 状態変数に保存
           });
         }
       } else {
@@ -103,19 +90,18 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
                 .eq('id', existingPartnerId)
                 .maybeSingle();
 
-        final partnerUserNameLocal =
+        final partnerUserName =
             partnerData?['user_name'] as String? ?? 'Unknown';
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('既に誰かとマッチ済みです。パートナー: $partnerUserNameLocal'),
+            content: Text('既に誰かとマッチ済みです。パートナー: $partnerUserName'),
             backgroundColor: Colors.blue,
           ),
         );
 
         setState(() {
           partnerId = existingPartnerId;
-          partnerUserName = partnerUserNameLocal; // 状態変数に保存
         });
       }
     } catch (e) {
@@ -192,10 +178,7 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
                 ),
                 const Gap(18),
                 Text(
-                  partnerId == null
-                      ? 'ペア待機中…'
-                      // : '現在のペア: $partnerUserName (ID: $partnerId)',
-                      : '現在のペア: $partnerUserName',
+                  partnerId == null ? 'ペア待機中…' : '現在のペア: $partnerId',
                   style: const TextStyle(fontSize: 18),
                   textAlign: TextAlign.center,
                 ),
