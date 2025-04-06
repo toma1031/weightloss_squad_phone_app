@@ -6,6 +6,8 @@ import './screens/login_page.dart';
 import './screens/splash_page.dart';
 import 'screens/meal_upload_page.dart';
 import 'screens/meal_history_page.dart';
+import 'screens/partner_meal_history_page.dart';
+
 Future<void> main() async {
   await dotenv.load(); // This will load .env by default
 
@@ -36,6 +38,7 @@ class MyApp extends StatelessWidget {
         '/upload': (_) => const UploadPage(),
         '/login-after': (_) => const LoginAfterPage(),
         '/meal_history': (_) => const MealHistoryPage(),
+        '/partner_meal_history': (_) => const PartnerMealHistoryPage(),
       },
     );
   }

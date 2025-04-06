@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../main.dart';
 import 'meal_history_page.dart'; // MealHistoryPage をインポート
+import 'partner_meal_history_page.dart'; // PartnerMealHistoryPage をインポート
 
 class LoginAfterPage extends StatefulWidget {
   const LoginAfterPage({super.key});
@@ -192,6 +193,13 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
                     Navigator.of(context).pushNamed('/meal_history'); // MealHistoryPage への遷移ボタン
                   },
                   child: const Text('食事履歴を見る'),
+                ),
+                const Gap(18),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pushNamed('/partner_meal_history'); // PartnerMealHistoryPage への遷移ボタン
+                  },
+                  child: const Text('パートナーの食事履歴を見る'),
                 ),
                 const Gap(18),
                 Text(
