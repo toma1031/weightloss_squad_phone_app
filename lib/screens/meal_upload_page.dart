@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+
 import '../main.dart';
 
 class UploadPage extends StatefulWidget {
@@ -46,7 +48,6 @@ class UploadPageState extends State<UploadPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('ログアウトしました')),
       );
-      // ログイン画面にリダイレクト（実装はアプリの構造に依存）
       Navigator.pushReplacementNamed(context, '/login');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,7 +103,7 @@ class UploadPageState extends State<UploadPage> {
       final filePath = 'uploads/$fileName';
 
       await supabase.storage
-          .from('meal-photos') // 実際のバケット名
+          .from('meal-photos')
           .upload(filePath, File(_image!.path));
 
       // 公開URLを取得
@@ -110,16 +111,43 @@ class UploadPageState extends State<UploadPage> {
           .from('meal-photos')
           .getPublicUrl(filePath);
 
-      // データベースに保存
+      // ユーザーIDを取得
+      final userId = supabase.auth.currentUser!.id;
+
+      // 今日の日付を取得（yyyy-MM-dd 形式）
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+      // daily_meals に今日のエントリが存在するか確認
+      final dailyMealData = await supabase
+          .from('daily_meals')
+          .select()
+          .eq('user_id', userId)
+          .eq('date', today)
+          .maybeSingle();
+
+      int dailyMealId; // int 型として扱う
+      if (dailyMealData == null) {
+        // daily_meals にエントリを作成
+        final dailyMealResponse = await supabase.from('daily_meals').insert({
+          'user_id': userId,
+          'date': today,
+          'created_at': DateTime.now().toIso8601String(),
+        }).select().single();
+        dailyMealId = dailyMealResponse['id'] as int; // int として取得
+      } else {
+        dailyMealId = dailyMealData['id'] as int; // int として取得
+      }
+
+      // meals テーブルにデータを挿入
       final data = {
+        'daily_meal_id': dailyMealId, // int 値をそのまま使用
+        'user_id': userId,
         'title': _titleController.text,
         'description': _descriptionController.text,
         'image_url': imageUrl,
         'created_at': DateTime.now().toIso8601String(),
-        'user_id': supabase.auth.currentUser!.id, // ログイン済みなので ! を使用
       };
-      print('Inserting data: $data'); // デバッグ用ログ
-      print('Current user ID: ${supabase.auth.currentUser!.id}'); // ユーザーID確認
+      print('Inserting data into meals: $data');
 
       await supabase.from('meals').insert(data);
 
@@ -134,7 +162,6 @@ class UploadPageState extends State<UploadPage> {
       }
     } on PostgrestException catch (e) {
       if (mounted) {
-        // RLS ポリシー違反の場合、詳細なメッセージを表示
         if (e.code == '42501') {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -147,7 +174,7 @@ class UploadPageState extends State<UploadPage> {
             SnackBar(content: Text('アップロードに失敗しました: ${e.message}')),
           );
         }
-        print('PostgrestException: $e'); // デバッグ用ログ
+        print('PostgrestException: $e');
       }
     } catch (e) {
       if (mounted) {
@@ -155,7 +182,7 @@ class UploadPageState extends State<UploadPage> {
           SnackBar(content: Text('アップロードに失敗しました: $e')),
         );
       }
-      print('Unexpected error: $e'); // デバッグ用ログ
+      print('Unexpected error: $e');
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);

@@ -3,6 +3,7 @@ import 'package:gap/gap.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../main.dart';
+import 'meal_history_page.dart'; // MealHistoryPage をインポート
 
 class LoginAfterPage extends StatefulWidget {
   const LoginAfterPage({super.key});
@@ -35,12 +36,11 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
       print('Current user ID: $userId');
 
       print('Fetching pair data...');
-      final pairData =
-          await supabase
-              .from('pairs')
-              .select('user1_id, user2_id')
-              .or('user1_id.eq.$userId,user2_id.eq.$userId')
-              .maybeSingle();
+      final pairData = await supabase
+          .from('pairs')
+          .select('user1_id, user2_id')
+          .or('user1_id.eq.$userId,user2_id.eq.$userId')
+          .maybeSingle();
       print('Pair data: $pairData');
 
       if (pairData == null) {
@@ -68,12 +68,11 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
         } else if (message == 'Pair created') {
           final newPartnerId = responseData['partnerId'] as String;
           // 新しくマッチした相手のユーザー名を取得
-          final partnerData =
-              await supabase
-                  .from('users')
-                  .select('user_name')
-                  .eq('id', newPartnerId)
-                  .maybeSingle();
+          final partnerData = await supabase
+              .from('users')
+              .select('user_name')
+              .eq('id', newPartnerId)
+              .maybeSingle();
 
           final newPartnerUserName =
               partnerData?['user_name'] as String? ?? 'Unknown';
@@ -91,17 +90,14 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
         }
       } else {
         final existingPartnerId =
-            pairData['user1_id'] == userId
-                ? pairData['user2_id']
-                : pairData['user1_id'];
+            pairData['user1_id'] == userId ? pairData['user2_id'] : pairData['user1_id'];
 
         // 相手のユーザー情報を取得
-        final partnerData =
-            await supabase
-                .from('users')
-                .select('user_name')
-                .eq('id', existingPartnerId)
-                .maybeSingle();
+        final partnerData = await supabase
+            .from('users')
+            .select('user_name')
+            .eq('id', existingPartnerId)
+            .maybeSingle();
 
         final partnerUserNameLocal =
             partnerData?['user_name'] as String? ?? 'Unknown';
@@ -191,10 +187,16 @@ class _LoginAfterPageState extends State<LoginAfterPage> {
                   child: const Text('食事写真をアップロード'),
                 ),
                 const Gap(18),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pushNamed('/meal_history'); // MealHistoryPage への遷移ボタン
+                  },
+                  child: const Text('食事履歴を見る'),
+                ),
+                const Gap(18),
                 Text(
                   partnerId == null
                       ? 'ペア待機中…'
-                      // : '現在のペア: $partnerUserName (ID: $partnerId)',
                       : '現在のペア: $partnerUserName',
                   style: const TextStyle(fontSize: 18),
                   textAlign: TextAlign.center,
