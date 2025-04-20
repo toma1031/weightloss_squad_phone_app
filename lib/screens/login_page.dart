@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:timezone/timezone.dart' as tz; // ここ変更（タイムゾーン）
+import 'package:timezone/data/latest.dart' as tz; // ここ変更（タイムゾーン）
 
 import '../main.dart';
 import 'my_text_field.dart';
@@ -19,25 +21,28 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   var _redirecting = false;
   var _isLoading = false;
-  // var _shouldCreateUser = true;
   late final StreamSubscription<AuthState> _authStateSubscription;
+  StreamSubscription? _deepLinkSubscription; // ディープリンク用のサブスクリプション
 
-  // final _emailController = TextEditingController(text: 'someone@example.com');
-  // final _passwordController = TextEditingController(
-  //   text: 'rBTWSCWtdgbdaEuhisNF',
-  // );
-  // final _userNameController = TextEditingController(text: 'example taro');
   final _magicLinkEmailController = TextEditingController(text: '');
+
+  get linkStream => null;
 
   @override
   void initState() {
     super.initState();
 
+    // タイムゾーンの初期化
+    tz.initializeTimeZones();
+
+    // ディープリンクの初期化
+    _initDeepLink();
+
+    // 認証状態の変更を監視
     _authStateSubscription = supabase.auth.onAuthStateChange.listen((
       event,
     ) async {
-      debugPrint('event: ${event.event.toString()}');
-      debugPrint('Auth state changed: ${event.event.toString()}'); // ここ変更: ログを詳細に
+      debugPrint('Auth state changed: ${event.event.toString()}');
       if (_redirecting) {
         return;
       }
@@ -45,7 +50,7 @@ class _LoginPageState extends State<LoginPage> {
       if (session != null) {
         _redirecting = true;
 
-        // ここ変更: サインアップ/ログイン後に users レコードを作成
+        // サインアップ/ログイン後に users レコードを作成
         final userId = session.user.id;
         await _createUserRecord(userId);
 
@@ -54,47 +59,160 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  // ディープリンクの初期化
+  Future<void> _initDeepLink() async {
+    // 初回起動時にディープリンクをチェック
+    try {
+      final initialLink = await getInitialLink();
+      if (initialLink != null) {
+        debugPrint('Initial deep link: $initialLink');
+        _handleDeepLink(initialLink);
+      }
+    } catch (e) {
+      debugPrint('Error getting initial deep link: $e');
+    }
+
+    // アプリがフォアグラウンドにあるときにディープリンクを監視
+    _deepLinkSubscription = linkStream.listen(
+      (String? link) {
+        if (link != null) {
+          debugPrint('Deep link received: $link');
+          _handleDeepLink(link);
+        }
+      },
+      onError: (err) {
+        debugPrint('Error in deep link stream: $err');
+      },
+    );
+  }
+
+  // ディープリンクを処理
+  void _handleDeepLink(String link) {
+    // Supabase がリダイレクトしてきたリンクを処理
+    if (link.contains('io.supabase.weightlosssquad://login-callback')) {
+      // 認証状態が更新されるのを待つ
+      // `onAuthStateChange` イベントが発火するはずなので、ここでは特に処理を追加しない
+    }
+  }
+
   @override
   void dispose() {
     _authStateSubscription.cancel();
+    _deepLinkSubscription?.cancel();
+    _magicLinkEmailController.dispose();
     super.dispose();
   }
 
+  Future<Map<String, dynamic>?> getUserPair() async {
+    try {
+      // ユーザーの BAN 状態を確認
+      final userData =
+          await supabase
+              .from('users')
+              .select('is_banned, banned_until')
+              .eq('id', supabase.auth.currentUser!.id)
+              .single();
 
-// ここ変更: エラーハンドリングを強化
+      if (userData['is_banned'] == true &&
+          DateTime.parse(userData['banned_until']).isAfter(DateTime.now())) {
+        throw Exception('あなたはBANされています。ペアを表示できません。');
+      }
+
+      // ペアデータを取得
+      final pairData =
+          await supabase
+              .from('pairs')
+              .select()
+              .or(
+                'user1_id.eq.${supabase.auth.currentUser!.id},user2_id.eq.${supabase.auth.currentUser!.id}',
+              )
+              .maybeSingle();
+
+      return pairData;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('ペアの取得に失敗しました: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return null;
+    }
+  }
+
   Future<void> _createUserRecord(String userId) async {
     try {
-      debugPrint('Creating user record for userId: $userId'); // ログ追加
+      debugPrint('Creating user record for userId: $userId');
+
       // すでにレコードが存在するか確認
-      final existingUser = await supabase
-          .from('users')
-          .select()
-          .eq('id', userId)
-          .maybeSingle();
+      final existingUser =
+          await supabase
+              .from('users')
+              .select('id')
+              .eq('id', userId)
+              .maybeSingle();
 
       if (existingUser == null) {
         debugPrint('No existing user record found, inserting new record...');
+
+        // ユーザーのタイムゾーンを取得 // ここ変更（タイムゾーン）
+        final String userTimezone = tz.local.name; // 例: "Asia/Tokyo"
+        debugPrint('Detected timezone from tz.local.name: $userTimezone');
+        // バリデーション（有効なタイムゾーンか確認） // ここ変更（タイムゾーン）
+        bool isValidTimezone(String timezone) {
+          try {
+            tz.getLocation(timezone);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        final String timezoneToSave =
+            isValidTimezone(userTimezone) ? userTimezone : 'UTC';
+            debugPrint('Timezone to save: $timezoneToSave'); // ログ追加
+        // ユーザーデータを挿入
         await supabase.from('users').insert({
           'id': userId,
-          'last_upload_date': null,
-          'ban_until': null,
+          'user_name':
+              'user_${DateTime.now().millisecondsSinceEpoch}', // デフォルトのユーザー名を設定
+          'email':
+              supabase.auth.currentUser?.email ??
+              'unknown@example.com', // メールアドレスを設定
+          'is_banned': false, // デフォルトでBANされていない状態
+          'banned_until': null, // BAN期限は初期値としてnull
           'created_at': DateTime.now().toIso8601String(),
+          'timezone': timezoneToSave, // タイムゾーンを保存
         });
-        debugPrint('User record created successfully');
+
+        // 挿入後のレコードを確認
+        final insertedUser =
+            await supabase.from('users').select().eq('id', userId).single();
+
+        debugPrint('User record created successfully: $insertedUser');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('ユーザーデータを登録しました'),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          );
+        }
       } else {
         debugPrint('User record already exists: $existingUser');
       }
-    } catch (e) {
-      debugPrint('Failed to create user record: $e');
+    } catch (e, stackTrace) {
+      debugPrint('Failed to create user record: $e\nStackTrace: $stackTrace');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to create user record: $e'),
+            content: const Text('ユーザーデータの登録に失敗しました。再度お試しください。'),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
-      // エラーが発生してもログインは続行可能
     }
   }
 
@@ -112,45 +230,6 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Text('Sign in with GitHub',
-                //     style: Theme.of(context).textTheme.headlineSmall),
-                // const Gap(8.0),
-                // ElevatedButton(
-                //   onPressed: _isLoading ? null : _signInGitHub,
-                //   child: Text(_isLoading ? 'Loading' : 'Sign in with GitHub'),
-                // ),
-                // const Gap(8.0),
-                // const Divider(color: Colors.orange, thickness: 3.0),
-                // Text('Sign in with Email / Sign up with Email ',
-                //     style: Theme.of(context).textTheme.headlineSmall),
-                // MyTextField(
-                //   label: 'Email',
-                //   controller: _emailController,
-                // ),
-                // const Gap(8.0),
-                // MyTextField(
-                //   label: 'password',
-                //   controller: _passwordController,
-                // ),
-                // const Gap(8.0),
-                // MyTextField(
-                //   label: 'user_name',
-                //   controller: _userNameController,
-                // ),
-                // const Gap(8.0),
-                // ElevatedButton(
-                //   onPressed: _isLoading ? null : _signInEmail,
-                //   child:
-                //       Text(_isLoading ? 'Loading' : 'Sign in Email and Password'),
-                // ),
-                // const Gap(8.0),
-                // ElevatedButton(
-                //   onPressed: _isLoading ? null : _signUpEmail,
-                //   child:
-                //       Text(_isLoading ? 'Loading' : 'Sign up Email and Password'),
-                // ),
-                // const Gap(8.0),
-                // const Divider(color: Colors.orange, thickness: 3.0),
                 const Text(
                   'Weightloss Squad',
                   style: TextStyle(
@@ -174,15 +253,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   controller: _magicLinkEmailController,
                 ),
-                // CheckboxListTile.adaptive(
-                //   title: const Text('shouldCreateUser(default: true)'),
-                //   value: _shouldCreateUser,
-                //   onChanged: (value) {
-                //     if (value != null) {
-                //       setState(() => _shouldCreateUser = value);
-                //     }
-                //   },
-                // ),
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _signInMagicLink,
@@ -198,19 +268,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Future<void> _signInMagicLink() async {
-  //   await _signInFlow(() async {
-  //     await supabase.auth.signInWithOtp(
-  //       email: _magicLinkEmailController.text,
-  //       shouldCreateUser: true,
-  //       // shouldCreateUser: _shouldCreateUser,
-  //       // 下記URLがsupabase projectのRedirect URLsと一致していないと、リダイレクト後サインインできない(仕様)
-  //       // ref: https://github.com/supabase/supabase/issues/11995#issuecomment-1647874100
-  //       emailRedirectTo: 'io.supabase.weightlosssquad://login-callback/',
-  //     );
-  //   });
-  // }
-
   Future<void> _signInMagicLink() async {
     try {
       setState(() {
@@ -220,7 +277,6 @@ class _LoginPageState extends State<LoginPage> {
       await supabase.auth.signInWithOtp(
         email: _magicLinkEmailController.text,
         shouldCreateUser: true,
-        // 下記URLがsupabase projectのRedirect URLsと一致していないと、リダイレクト後サインインできない(仕様)
         emailRedirectTo: 'io.supabase.weightlosssquad://login-callback/',
       );
 
@@ -252,56 +308,6 @@ class _LoginPageState extends State<LoginPage> {
       });
     }
   }
-  // Future<void> _signUpEmail() async {
-  //   await _signInFlow(() async {
-  //     final auth = await supabase.auth.signUp(
-  //       email: _emailController.text,
-  //       password: _passwordController.text,
-  //       data: {'user_name': _userNameController.text},
-  //     );
-  //     debugPrint('auth: $auth');
-  //   });
-  // }
 
-  // Future<void> _signInEmail() async {
-  //   await _signInFlow(() async {
-  //     final auth = await supabase.auth.signInWithPassword(
-  //       email: _emailController.text,
-  //       password: _passwordController.text,
-  //     );
-  //     debugPrint('auth: $auth');
-  //   });
-  // }
-
-  // Future<void> _signInGitHub() async {
-  //   await _signInFlow(() async {
-  //     await supabase.auth.signInWithOAuth(
-  //       OAuthProvider.github,
-  //       redirectTo: 'io.supabase.weightlosssquad://login-callback/',
-  //     );
-  //   });
-  // }
-
-  Future<void> _signInFlow(FutureCallback<void> attemptFutureFunc) async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-      await attemptFutureFunc();
-    } catch (error) {
-      debugPrint('error: $error');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Unexpected Error. $error'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
+  getInitialLink() {}
 }

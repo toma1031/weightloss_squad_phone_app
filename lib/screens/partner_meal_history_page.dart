@@ -38,12 +38,11 @@ class _PartnerMealHistoryPageState extends State<PartnerMealHistoryPage> {
 
       // ペア情報を取得
       print('Fetching pair data...');
-      final pairData =
-          await supabase
-              .from('pairs')
-              .select()
-              .or('user1_id.eq.$userId,user2_id.eq.$userId')
-              .maybeSingle();
+      final pairData = await supabase
+          .from('pairs')
+          .select()
+          .or('user1_id.eq.$userId,user2_id.eq.$userId')
+          .maybeSingle();
       print('Pair data: $pairData');
 
       if (pairData == null) {
@@ -51,10 +50,9 @@ class _PartnerMealHistoryPageState extends State<PartnerMealHistoryPage> {
       }
 
       // パートナーの user_id を取得
-      final partnerId =
-          pairData['user1_id'] == userId
-              ? pairData['user2_id']
-              : pairData['user1_id'];
+      final partnerId = pairData['user1_id'] == userId
+          ? pairData['user2_id']
+          : pairData['user1_id'];
       print('Partner ID: $partnerId');
 
       // パートナーの daily_meals を取得
@@ -147,9 +145,9 @@ class _PartnerMealHistoryPageState extends State<PartnerMealHistoryPage> {
   Future<void> _postComment(int dailyMealId) async {
     final controller = commentControllers[dailyMealId];
     if (controller == null || controller.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('コメントを入力してください')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('コメントを入力してください')),
+      );
       return;
     }
 
@@ -163,12 +161,27 @@ class _PartnerMealHistoryPageState extends State<PartnerMealHistoryPage> {
         throw Exception('User is not authenticated');
       }
 
+      // ユーザーが属するペアを取得
+      final userId = user.id;
+      final pairData = await supabase
+          .from('pairs')
+          .select('id')
+          .or('user1_id.eq.$userId,user2_id.eq.$userId')
+          .maybeSingle();
+
+      if (pairData == null) {
+        throw Exception('ペアが見つかりません');
+      }
+
+      final pairId = pairData['id'] as int; // pair_id を int として取得
+
       // comments テーブルに新しいコメントを挿入
       await supabase.from('comments').insert({
         'daily_meal_id': dailyMealId,
         'user_id': user.id,
         'content': controller.text.trim(),
         'created_at': DateTime.now().toIso8601String(),
+        'pair_id': pairId, // pair_id を追加
       });
 
       // コメント投稿後にデータを再取得
@@ -177,9 +190,9 @@ class _PartnerMealHistoryPageState extends State<PartnerMealHistoryPage> {
       // 入力欄をクリア
       controller.clear();
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('コメントを投稿しました')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('コメントを投稿しました')),
+      );
     } catch (e) {
       print('Error posting comment: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -206,157 +219,145 @@ class _PartnerMealHistoryPageState extends State<PartnerMealHistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('パートナーの食事履歴')),
-      body:
-          isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : dailyMeals.isEmpty
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : dailyMeals.isEmpty
               ? const Center(child: Text('パートナーの食事データがありません'))
               : ListView.builder(
-                itemCount: dailyMeals.length,
-                itemBuilder: (context, index) {
-                  final dailyMeal = dailyMeals[index];
-                  final dailyMealId = dailyMeal['id'] as int;
-                  final date = DateFormat(
-                    'yyyy-MM-dd',
-                  ).format(DateTime.parse(dailyMeal['date']));
-                  final mealsForDay = mealsByDailyMeal[dailyMealId] ?? [];
-                  final commentsForDay = commentsByDailyMeal[dailyMealId] ?? [];
+                  itemCount: dailyMeals.length,
+                  itemBuilder: (context, index) {
+                    final dailyMeal = dailyMeals[index];
+                    final dailyMealId = dailyMeal['id'] as int;
+                    final date = DateFormat('yyyy-MM-dd')
+                        .format(DateTime.parse(dailyMeal['date']));
+                    final mealsForDay = mealsByDailyMeal[dailyMealId] ?? [];
+                    final commentsForDay = commentsByDailyMeal[dailyMealId] ?? [];
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          decoration: const BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(color: Colors.grey, width: 1),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            decoration: const BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(color: Colors.grey, width: 1),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            date,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      ...mealsForDay.map((meal) {
-                        final createdAt = DateTime.parse(meal['created_at']);
-                        final time = DateFormat('HH:mm').format(createdAt);
-
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 8.0,
-                          ),
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                meal['image_url'] != null &&
-                                        meal['image_url'].isNotEmpty
-                                    ? Image.network(
-                                      meal['image_url'],
-                                      width: 100,
-                                      height: 100,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (
-                                        context,
-                                        error,
-                                        stackTrace,
-                                      ) {
-                                        print('Image load error: $error');
-                                        return const Icon(Icons.broken_image);
-                                      },
-                                      loadingBuilder: (
-                                        context,
-                                        child,
-                                        loadingProgress,
-                                      ) {
-                                        if (loadingProgress == null) {
-                                          return child;
-                                        }
-                                        return const CircularProgressIndicator();
-                                      },
-                                    )
-                                    : const Icon(
-                                      Icons.no_photography,
-                                      size: 100,
-                                    ),
-                                const Gap(16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '食事の種類: ${meal['title']}',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Text('時間: $time'),
-                                      const Gap(8),
-                                      Text(
-                                        '説明: ${meal['description'] ?? '説明なし'}',
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 8.0,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'パートナーへの感想:',
-                              style: TextStyle(
-                                fontSize: 16,
+                            child: Text(
+                              date,
+                              style: const TextStyle(
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const Gap(8),
-                            commentsForDay.isEmpty
-                                ? const Text('まだコメントがありません')
-                                : Column(
-                                  children:
-                                      commentsForDay.map((comment) {
-                                        final commentTime = DateFormat(
-                                          'yyyy-MM-dd HH:mm',
-                                        ).format(
-                                          DateTime.parse(comment['created_at']),
-                                        );
-                                        return Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 8.0,
+                          ),
+                        ),
+                        ...mealsForDay.map((meal) {
+                          final createdAt = DateTime.parse(meal['created_at']);
+                          final time = DateFormat('HH:mm').format(createdAt);
+
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 8.0,
+                            ),
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  meal['image_url'] != null &&
+                                          meal['image_url'].isNotEmpty
+                                      ? Image.network(
+                                          meal['image_url'],
+                                          width: 100,
+                                          height: 100,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (
+                                            context,
+                                            error,
+                                            stackTrace,
+                                          ) {
+                                            print('Image load error: $error');
+                                            return const Icon(Icons.broken_image);
+                                          },
+                                          loadingBuilder: (
+                                            context,
+                                            child,
+                                            loadingProgress,
+                                          ) {
+                                            if (loadingProgress == null) {
+                                              return child;
+                                            }
+                                            return const CircularProgressIndicator();
+                                          },
+                                        )
+                                      : const Icon(
+                                          Icons.no_photography,
+                                          size: 100,
+                                        ),
+                                  const Gap(16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '食事の種類: ${meal['title']}',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
                                           ),
+                                        ),
+                                        Text('時間: $time'),
+                                        const Gap(8),
+                                        Text(
+                                          '説明: ${meal['description'] ?? '説明なし'}',
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 8.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'パートナーへの感想:',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const Gap(8),
+                              commentsForDay.isEmpty
+                                  ? const Text('まだコメントがありません')
+                                  : Column(
+                                      children: commentsForDay.map((comment) {
+                                        final commentTime = DateFormat('yyyy-MM-dd HH:mm')
+                                            .format(DateTime.parse(comment['created_at']));
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: 8.0),
                                           child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 comment['content'],
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                ),
+                                                style: const TextStyle(fontSize: 14),
                                               ),
                                               Text(
                                                 '投稿日時: $commentTime',
@@ -369,45 +370,43 @@ class _PartnerMealHistoryPageState extends State<PartnerMealHistoryPage> {
                                           ),
                                         );
                                       }).toList(),
-                                ),
-                            const Gap(16),
-                            // コメント投稿用の入力欄とボタン
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: commentControllers[dailyMealId],
-                                    decoration: const InputDecoration(
-                                      labelText: 'コメントを入力',
-                                      border: OutlineInputBorder(),
                                     ),
-                                    maxLines: 2,
+                              const Gap(16),
+                              // コメント投稿用の入力欄とボタン
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: commentControllers[dailyMealId],
+                                      decoration: const InputDecoration(
+                                        labelText: 'コメントを入力',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      maxLines: 2,
+                                    ),
                                   ),
-                                ),
-                                const Gap(8),
-                                ElevatedButton(
-                                  onPressed:
-                                      isPostingComment[dailyMealId] == true
-                                          ? null
-                                          : () => _postComment(dailyMealId),
-                                  child:
-                                      isPostingComment[dailyMealId] == true
-                                          ? const SizedBox(
+                                  const Gap(8),
+                                  ElevatedButton(
+                                    onPressed: isPostingComment[dailyMealId] == true
+                                        ? null
+                                        : () => _postComment(dailyMealId),
+                                    child: isPostingComment[dailyMealId] == true
+                                        ? const SizedBox(
                                             width: 20,
                                             height: 20,
                                             child: CircularProgressIndicator(),
                                           )
-                                          : const Text('投稿'),
-                                ),
-                              ],
-                            ),
-                          ],
+                                        : const Text('投稿'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  );
-                },
-              ),
+                      ],
+                    );
+                  },
+                ),
     );
   }
 }
